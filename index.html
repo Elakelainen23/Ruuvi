@@ -43,6 +43,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 #huippu.ok { color: var(--ok); }
 #huippu.ei { color: var(--bad); }
 #tavoiterivi { font-size: 1.4rem; margin: 0; font-variant-numeric: tabular-nums; }
+#nopeusrivi { font-size: 1.6rem; font-weight: 700; margin: 0 0 6px; color: var(--fg); font-variant-numeric: tabular-nums; min-height: 1.2em; }
 #pisteet { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; min-height: 22px; margin: 6px 0 10px; }
 #pisteet span { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line); }
 #pisteet span.ok { background: var(--ok); border-color: var(--ok); }
@@ -103,6 +104,7 @@ details[open] { display: grid; gap: 10px; }
     <p id="vaihe"></p>
     <p id="laskuri"></p>
     <div id="huippu">–</div>
+    <p id="nopeusrivi"></p>
     <p id="tavoiterivi"></p>
     <div id="pisteet"></div>
     <button id="b-lopeta">Lopeta sarja</button>
@@ -166,6 +168,28 @@ function liikeTiedot(d, k, n, luo) {
 }
 
 // ---------- Toistojen tunnistus (sama kuin PC-ohjelmassa) ----------
+// Poistaa lyhyet piikit (kolahdukset, anturin värinä): 7 mittauksen mediaani + 5 mittauksen keskiarvo.
+class Suodin {
+  constructor() { this.m = []; this.k = []; }
+  syota(a) {
+    this.m.push(a); if (this.m.length > 7) this.m.shift();
+    const j = [...this.m].sort((x, y) => x - y);
+    this.k.push(j[Math.floor(j.length / 2)]); if (this.k.length > 5) this.k.shift();
+    return this.k.reduce((s, x) => s + x, 0) / this.k.length;
+  }
+}
+
+// Pystynopeus kiihtyvyydestä; nollataan aina kun tanko on levossa (0,2 s alle 0,6 m/s²).
+class Nopeus {
+  constructor() { this.v = 0; this.aEd = 0; this.lepo = 0; }
+  syota(dt, a) {
+    this.v += (a + this.aEd) / 2 * dt; this.aEd = a;
+    this.lepo = Math.abs(a) < 0.6 ? this.lepo + dt : 0;
+    if (this.lepo >= 0.2) this.v = 0;
+    return this.v;
+  }
+}
+
 class ToistoTunnistin {
   constructor() { this.kaynnissa = false; this.huippu = 0; this.huippuT = 0; this.loppu = null; }
   syota(t, a) {
@@ -196,6 +220,8 @@ class Mittaus {
     this.ylos = null; this.g = null; this.kalibroitu = false;
     this.tunnistin = new ToistoTunnistin(); this.huiput = []; this.mittauksia = 0; this.valmis = false;
     this.kayra = []; this.huippuAjat = [];   // [aika s, pystykiihtyvyys m/s²] tulosnäkymän käyrään
+    this.suodin = new Suodin(); this.nopeus = new Nopeus(); this.tEdK = null;
+    this.nopeudet = []; this.toistoV = 0;   // toistojen huippunopeudet ylöspäin (m/s)
   }
   syota(t, acc) {
     if (this.valmis) return;
@@ -225,10 +251,18 @@ class Mittaus {
   kasittele(t, acc) {
     if (this.valmis) return;
     this.mittauksia++;
-    const av = (piste(acc, this.ylos) - this.g) * G;
+    const av = this.suodin.syota((piste(acc, this.ylos) - this.g) * G);   // kolahduspiikit pois
+    const dt = this.tEdK === null ? 0 : t - this.tEdK;
+    this.tEdK = t;
     this.kayra.push([t - this.t0, av]);
-    const h = this.tunnistin.syota(t - this.t0, av);
-    if (h !== null) { this.huiput.push(pyor(h)); this.huippuAjat.push(this.tunnistin.huippuT); this.k("toisto", h); }
+    const v = this.nopeus.syota(dt, av), tu = this.tunnistin, oli = tu.kaynnissa;
+    const h = tu.syota(t - this.t0, av);
+    if (tu.kaynnissa && !oli) this.toistoV = 0;
+    if (tu.kaynnissa || h !== null) this.toistoV = Math.max(this.toistoV, v);
+    if (h !== null) {
+      this.huiput.push(pyor(h)); this.nopeudet.push(pyor(this.toistoV)); this.huippuAjat.push(tu.huippuT);
+      this.k("toisto", h);
+    }
     if (this.huiput.length >= this.n) this.lopeta("valmis");
     else if (this.mittauksia >= MAKS) this.lopeta("maks");
   }
@@ -236,7 +270,8 @@ class Mittaus {
     if (this.valmis) return;
     const tu = this.tunnistin;
     if (tu.kaynnissa && tu.loppu !== null && this.huiput.length < this.n) {  // kesken jäänyt viimeinen toisto
-      this.huiput.push(pyor(tu.huippu)); this.huippuAjat.push(tu.huippuT); this.k("toisto", tu.huippu);
+      this.huiput.push(pyor(tu.huippu)); this.nopeudet.push(pyor(this.toistoV)); this.huippuAjat.push(tu.huippuT);
+      this.k("toisto", tu.huippu);
     }
     this.valmis = true;
     this.k("loppu", syy);
@@ -419,7 +454,7 @@ function aloita(testi) {
   $("asetukset").hidden = true; $("tulos").hidden = true; $("varmuus").hidden = true; $("mittaus").hidden = false;
   $("vaihe").textContent = "Pidä tanko hetki paikallaan ...";
   $("laskuri").textContent = `${testi ? "Pohjatesti" : "Harjoitus"} · ${n} · ${kg(kuorma)}`;
-  $("huippu").textContent = "–"; $("huippu").className = "";
+  $("huippu").textContent = "–"; $("huippu").className = ""; $("nopeusrivi").textContent = "";
   $("tavoiterivi").textContent = tavoite ? `Ensimmäinen tavoite ${fi(tavoite[0])}` : "";
   $("pisteet").innerHTML = "";
   for (let i = 0; i < lukumaara; i++) $("pisteet").append(document.createElement("span"));
@@ -440,6 +475,7 @@ function tapahtuma(laji, arvo) {
     const i = m.huiput.length, h = arvo, pallo = $("pisteet").children[i - 1];
     $("laskuri").textContent = `Toisto ${i} / ${s.n}`;
     $("huippu").textContent = fi(h);
+    $("nopeusrivi").textContent = `huippunopeus ${fi(m.nopeudet[i - 1], 2)} m/s`;
     if (s.tavoite && i <= s.tavoite.length) {
       const ok = h >= s.tavoite[i - 1];
       $("huippu").className = ok ? "ok" : "ei";
@@ -462,7 +498,7 @@ function tapahtuma(laji, arvo) {
 function valmis(syy) {
   lopetaDemo();
   pidaNayttoPaalla(false);
-  const s = sarja, huiput = mittaus.huiput;
+  const s = sarja, huiput = mittaus.huiput, nopeudet = mittaus.nopeudet;
   mittaus = null;
   $("mittaus").hidden = true; $("varmuus").hidden = false;
   if (!huiput.length) {
@@ -473,7 +509,7 @@ function valmis(syy) {
   }
   const d = lueData(), l = liikeTiedot(d, s.k, s.nimi, true);
   const nyt = new Date(), pvm = `${String(nyt.getDate()).padStart(2, "0")}.${String(nyt.getMonth() + 1).padStart(2, "0")}. ${String(nyt.getHours()).padStart(2, "0")}:${String(nyt.getMinutes()).padStart(2, "0")}`;
-  const tiedot = { pvm, huiput, liike: [], laite: "puhelin" };
+  const tiedot = { pvm, huiput, nopeudet, liike: [], laite: "puhelin" };
   let otsikko, teksti, ok = false;
   if (s.testi) {
     if (l.testi?.length) {   // vanha kuorma talteen
@@ -502,13 +538,13 @@ function valmis(syy) {
   $("tulos").hidden = false;
   const pohjaN = s.testi ? null : l.testi.slice(0, s.n);
   piirra(huiput, pohjaN, s.tavoite);
-  taulukko(huiput, pohjaN, s.tavoite);
+  taulukko(huiput, nopeudet, pohjaN, s.tavoite);
   paivita();
 }
 
-function taulukko(huiput, pohja, tavoite) {
+function taulukko(huiput, nopeudet, pohja, tavoite) {
   const t = $("taulukko");
-  t.innerHTML = "<tr><th>Toisto</th>" + (pohja ? "<th>Pohja</th><th>Tavoite</th>" : "") + "<th>Nyt m/s²</th></tr>";
+  t.innerHTML = "<tr><th>Toisto</th>" + (pohja ? "<th>Pohja</th><th>Tavoite</th>" : "") + "<th>Nyt m/s²</th><th>m/s</th></tr>";
   huiput.forEach((h, i) => {
     const r = t.insertRow();
     r.insertCell().textContent = i + 1;
@@ -516,6 +552,7 @@ function taulukko(huiput, pohja, tavoite) {
     const c = r.insertCell();
     c.textContent = fi(h) + (tavoite && tavoite[i] != null ? (h >= tavoite[i] ? " ✓" : " ✗") : "");
     if (tavoite && tavoite[i] != null) c.style.color = h >= tavoite[i] ? "var(--ok)" : "var(--bad)";
+    r.insertCell().textContent = nopeudet[i] != null ? fi(nopeudet[i], 2) : "–";
   });
 }
 
