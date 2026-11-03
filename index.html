@@ -1,0 +1,601 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101418">
+<title>Ruuvi-voimaharjoittelu</title>
+<style>
+/* Salikäyttö: tumma, suuri kontrasti, isot numerot. Yksi sarake puhelimen leveydellä. */
+:root {
+  --bg: #101418; --panel: #1a2027; --line: #2b343e; --fg: #eef2f5; --muted: #8d9aa7;
+  --accent: #f2b53a; --ok: #3fcf6e; --bad: #ff6060;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.4 var(--font); }
+body { padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+main { max-width: 520px; margin: 0 auto; display: grid; gap: 14px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+h1 { font-size: 1.15rem; margin: 0; letter-spacing: .01em; }
+.tila { font-size: .8rem; padding: 4px 10px; border-radius: 99px; background: var(--panel); color: var(--muted); border: 1px solid var(--line); white-space: nowrap; }
+.tila.yhdistetty { color: var(--ok); border-color: var(--ok); }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 12px; }
+label { display: grid; gap: 4px; font-size: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+input[type=text], input[type=number] { font: inherit; font-size: 1.1rem; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; width: 100%; text-transform: none; letter-spacing: 0; }
+.rivi { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+button { font: inherit; font-weight: 600; font-size: 1.05rem; border: 0; border-radius: 10px; padding: 14px 12px; cursor: pointer; background: var(--line); color: var(--fg); }
+button.paa { background: var(--accent); color: #1b1404; }
+button:disabled { opacity: .45; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.info { font-size: .9rem; color: var(--muted); margin: 0; }
+.valinta { display: flex; align-items: center; gap: 8px; font-size: .9rem; color: var(--muted); text-transform: none; letter-spacing: 0; }
+.viesti { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--bg); font-size: .95rem; }
+.viesti.virhe { color: var(--bad); }
+
+/* Mittausnäkymä: pelkistetty */
+#mittaus { text-align: center; gap: 6px; padding-block: 20px; }
+#vaihe { font-size: 1.05rem; color: var(--accent); min-height: 1.4em; margin: 0; }
+#laskuri { font-size: 1.3rem; color: var(--muted); margin: 0; font-variant-numeric: tabular-nums; }
+#huippu { font-size: clamp(5rem, 30vw, 9rem); font-weight: 800; line-height: 1; margin: 4px 0; font-variant-numeric: tabular-nums; }
+#huippu.ok { color: var(--ok); }
+#huippu.ei { color: var(--bad); }
+#tavoiterivi { font-size: 1.4rem; margin: 0; font-variant-numeric: tabular-nums; }
+#pisteet { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; min-height: 22px; margin: 6px 0 10px; }
+#pisteet span { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line); }
+#pisteet span.ok { background: var(--ok); border-color: var(--ok); }
+#pisteet span.ei { background: var(--bad); border-color: var(--bad); }
+#pisteet span.tehty { background: var(--accent); border-color: var(--accent); }
+.vilkku { animation: vilkku .5s; }
+@keyframes vilkku { from { background: color-mix(in srgb, var(--ok) 45%, var(--panel)); } }
+@media (prefers-reduced-motion: reduce) { .vilkku { animation: none; } }
+
+/* Yhteenveto */
+#tulos h2 { margin: 0; font-size: 1.6rem; }
+#tulos h2.ok { color: var(--ok); }
+#kuva, #paiva-kuva { width: 100%; height: 220px; display: block; }
+#kayra { width: 100%; height: 200px; display: block; }
+#paiva-pylvaat { width: 100%; height: 170px; display: block; }
+.kuvateksti { margin: 0; font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+#paiva-selite { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: .9rem; font-variant-numeric: tabular-nums; }
+#paiva-selite li { display: flex; align-items: center; gap: 8px; }
+#paiva-selite i { width: 14px; height: 14px; border-radius: 50%; flex: none; }
+#paiva-selite b { margin-left: auto; font-weight: 600; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { padding: 6px 4px; text-align: right; border-bottom: 1px solid var(--line); }
+th:first-child, td:first-child { text-align: left; }
+th { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+details summary { cursor: pointer; color: var(--muted); }
+details[open] { display: grid; gap: 10px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Ruuvi-voimaharjoittelu</h1>
+    <span id="yhteys" class="tila">Ei yhteyttä</span>
+  </header>
+
+  <section id="asetukset">
+    <button id="b-yhdista" class="paa">Yhdistä anturiin (Ruuvi100)</button>
+    <label class="valinta"><input type="checkbox" id="demo"> Demo ilman anturia (simuloitu data)</label>
+    <div class="rivi">
+      <label>Käyttäjä<input type="text" id="kayttaja" list="kayttajat" autocomplete="off"></label>
+      <label>Liike<input type="text" id="liike" list="liikkeet" autocomplete="off"></label>
+    </div>
+    <div class="rivi">
+      <label>Kuorma (kg)<input type="number" id="kuorma" inputmode="decimal" step="0.5" min="0"></label>
+      <label>Toistoja<input type="number" id="toistot" inputmode="numeric" min="1" max="20" value="6"></label>
+    </div>
+    <datalist id="kayttajat"></datalist>
+    <datalist id="liikkeet"></datalist>
+    <p id="info" class="info"></p>
+    <div class="rivi">
+      <button id="b-testi">Pohjatesti</button>
+      <button id="b-harj" class="paa">Harjoitussarja</button>
+    </div>
+    <p id="viesti" class="viesti" hidden></p>
+  </section>
+
+  <section id="mittaus" hidden>
+    <p id="vaihe"></p>
+    <p id="laskuri"></p>
+    <div id="huippu">–</div>
+    <p id="tavoiterivi"></p>
+    <div id="pisteet"></div>
+    <button id="b-lopeta">Lopeta sarja</button>
+  </section>
+
+  <section id="tulos" hidden>
+    <h2 id="tulos-otsikko"></h2>
+    <p id="tulos-teksti" class="info"></p>
+    <canvas id="kuva"></canvas>
+    <table id="taulukko"></table>
+    <button id="b-takaisin" class="paa">Valmis</button>
+  </section>
+
+  <section id="varmuus">
+    <details>
+      <summary>Tiedot ja varmuuskopio</summary>
+      <p class="info">Tulokset tallentuvat tähän puhelimeen. Ota välillä varmuuskopio: se on samaa muotoa kuin tietokoneohjelman ruuvi_harjoitus.json.</p>
+      <button id="b-vie">Tallenna varmuuskopio (JSON)</button>
+      <label>Tuo tiedot tiedostosta (korvaa puhelimen tiedot)<input type="file" id="tuo" accept=".json,application/json"></label>
+      <button id="b-tuo-vahvista" hidden>Vahvista: korvaa puhelimen tiedot</button>
+    </details>
+  </section>
+</main>
+
+<script>
+"use strict";
+// ---------- Vakiot (samat kuin ruuvi_kiihtyvyys.py) ----------
+const G = 9.81, TAAJUUS = 100;
+const LEPOIKKUNA = 0.5, LEPORAJA = 0.03, ESIAIKA = 0.5;   // s, g, s
+const KYNNYS = 3.0, YHDISTA = 0.3, ALOITUS = 0.35;        // m/s², s, m/s
+const MAKS = 1500, LISAYS = 0.10;
+const NUS = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+const NUS_RX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
+const NUS_TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+const AVAIN = "ruuvi_harjoitus";
+
+const $ = id => document.getElementById(id);
+const piste = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const pituus = a => Math.sqrt(piste(a, a));
+const pyor = (x, d = 2) => Math.round(x * 10 ** d) / 10 ** d;
+const fi = (x, d = 1) => x.toFixed(d).replace(".", ",");
+const kg = x => (x == null ? "?" : String(x).replace(".", ",")) + " kg";
+
+// ---------- Tallennus ----------
+function lueData() {
+  try {
+    const d = JSON.parse(localStorage.getItem(AVAIN) || "{}");
+    if (d && !d.kayttajat && Object.keys(d).length) return { kayttajat: { oletus: d } };
+    d.kayttajat = d.kayttajat || {};
+    return d;
+  } catch { return { kayttajat: {} }; }
+}
+function tallenna(d) {
+  try { localStorage.setItem(AVAIN, JSON.stringify(d)); return true; }
+  catch { naytaViesti("Tallennus puhelimeen epäonnistui. Ota varmuuskopio.", true); return false; }
+}
+function liikeTiedot(d, k, n, luo) {
+  if (!luo) return d.kayttajat[k]?.[n];
+  const u = d.kayttajat[k] = d.kayttajat[k] || {};
+  return u[n] = u[n] || { testi: [], kuorma: null, sarjat: [], historia: [] };
+}
+
+// ---------- Toistojen tunnistus (sama kuin PC-ohjelmassa) ----------
+class ToistoTunnistin {
+  constructor() { this.kaynnissa = false; this.huippu = 0; this.huippuT = 0; this.loppu = null; }
+  syota(t, a) {
+    if (!this.kaynnissa) {
+      if (a > KYNNYS) { this.kaynnissa = true; this.huippu = a; this.huippuT = t; this.loppu = null; }
+      return null;
+    }
+    if (this.loppu === null) {
+      if (a > this.huippu) { this.huippu = a; this.huippuT = t; }
+      if (a < 0) this.loppu = t;               // hidastuu: päättyy, ellei uusi kiihdytys ala pian
+    } else if (a > KYNNYS) {
+      if (a > this.huippu) { this.huippu = a; this.huippuT = t; }
+      this.loppu = null;                       // sama toisto jatkuu
+    } else if (t - this.loppu > YHDISTA) {
+      this.kaynnissa = false;
+      return this.huippu;
+    }
+    return null;
+  }
+}
+
+// Yksi sarja: odottaa levossa (kalibrointi), alkaa kun tanko lähtee selvästi liikkeelle,
+// tunnistaa toistot ja päättyy kun n toistoa on tehty tai mittausraja täyttyy.
+class Mittaus {
+  constructor(n, kuuntelija) {
+    this.n = n; this.k = kuuntelija;
+    this.puskuri = []; this.t0 = null; this.tEd = null; this.v = 0;
+    this.ylos = null; this.g = null; this.kalibroitu = false;
+    this.tunnistin = new ToistoTunnistin(); this.huiput = []; this.mittauksia = 0; this.valmis = false;
+    this.kayra = []; this.huippuAjat = [];   // [aika s, pystykiihtyvyys m/s²] tulosnäkymän käyrään
+  }
+  syota(t, acc) {
+    if (this.valmis) return;
+    if (this.t0 !== null) { this.kasittele(t, acc); return; }
+    const p = this.puskuri;
+    p.push([t, acc]);
+    while (p[0][0] < t - Math.max(ESIAIKA, LEPOIKKUNA)) p.shift();
+    let ikkuna = p.filter(x => x[0] >= t - LEPOIKKUNA).map(x => x[1]);
+    if (ikkuna.length < 5) ikkuna = p.slice(-5).map(x => x[1]);
+    const ka = [0, 1, 2].map(i => ikkuna.reduce((s, a) => s + a[i], 0) / ikkuna.length);
+    const hajonta = Math.max(...ikkuna.map(a => pituus([a[0] - ka[0], a[1] - ka[1], a[2] - ka[2]])));
+    if (ikkuna.length >= 5 && hajonta < LEPORAJA) {      // levossa: uusi kalibrointi
+      this.g = pituus(ka); this.ylos = ka.map(x => x / this.g); this.v = 0;
+      if (!this.kalibroitu) { this.kalibroitu = true; this.k("kalibroitu"); }
+    } else if (this.ylos) {
+      // kiihtyvyyden suuruudesta integroitu nopeus: tangon pyöriminen maassa ei vaikuta
+      const dt = t - this.tEd;
+      this.v = this.v * Math.exp(-dt / 0.7) + (pituus(acc) - this.g) * G * dt;
+      if (Math.abs(this.v) > ALOITUS) {
+        this.t0 = p[0][0];
+        this.k("alku");
+        for (const [tt, a] of p) this.kasittele(tt, a);
+      }
+    }
+    this.tEd = t;
+  }
+  kasittele(t, acc) {
+    if (this.valmis) return;
+    this.mittauksia++;
+    const av = (piste(acc, this.ylos) - this.g) * G;
+    this.kayra.push([t - this.t0, av]);
+    const h = this.tunnistin.syota(t - this.t0, av);
+    if (h !== null) { this.huiput.push(pyor(h)); this.huippuAjat.push(this.tunnistin.huippuT); this.k("toisto", h); }
+    if (this.huiput.length >= this.n) this.lopeta("valmis");
+    else if (this.mittauksia >= MAKS) this.lopeta("maks");
+  }
+  lopeta(syy) {
+    if (this.valmis) return;
+    const tu = this.tunnistin;
+    if (tu.kaynnissa && tu.loppu !== null && this.huiput.length < this.n) {  // kesken jäänyt viimeinen toisto
+      this.huiput.push(pyor(tu.huippu)); this.huippuAjat.push(tu.huippuT); this.k("toisto", tu.huippu);
+    }
+    this.valmis = true;
+    this.k("loppu", syy);
+  }
+}
+
+// ---------- Anturi (Web Bluetooth) ----------
+let laite = null, rx = null, rivipuskuri = "", mittaus = null, demoAjastin = null;
+let tahti = [];  // [aika ms, mittauksia] mittaustiheyden näyttöön
+
+function syotaNaytteet(t0, naytteet) {
+  const nyt = performance.now();
+  tahti.push([nyt, naytteet.length]);
+  while (tahti.length && tahti[0][0] < nyt - 2000) tahti.shift();
+  naytteet.forEach((acc, k) => mittaus && mittaus.syota((t0 + k) / TAAJUUS, acc));
+}
+
+function puraRivi(r) {   // "D,<nro>,<ylivuoto>,x,y,z,..." milli-g
+  const o = r.trim().split(",");
+  if (o.length < 6 || o[0] !== "D") return;
+  const luvut = o.slice(1).map(Number);
+  if (luvut.some(isNaN)) return;
+  const [nro, , ...arvot] = luvut;
+  const naytteet = [];
+  for (let i = 0; i + 2 < arvot.length; i += 3) naytteet.push([arvot[i] / 1000, arvot[i + 1] / 1000, arvot[i + 2] / 1000]);
+  syotaNaytteet(nro, naytteet);
+}
+
+async function yhdista() {
+  if (!navigator.bluetooth) {
+    naytaViesti("Tämä selain ei osaa Bluetoothia. Avaa sivu Chrome-selaimella (ei Samsung Internet).", true);
+    return;
+  }
+  try {
+    laite = await navigator.bluetooth.requestDevice({ filters: [{ namePrefix: "Ruuvi100" }], optionalServices: [NUS] });
+    laite.addEventListener("gattserverdisconnected", katkesi);
+    await avaaYhteys();
+  } catch (e) {
+    if (e.name !== "NotFoundError") naytaViesti("Yhdistäminen epäonnistui: " + e.message, true);
+  }
+}
+
+async function avaaYhteys() {
+  asetaYhteys("Yhdistetään ...");
+  const palvelin = await laite.gatt.connect();
+  const palvelu = await palvelin.getPrimaryService(NUS);
+  const tx = await palvelu.getCharacteristic(NUS_TX);
+  rx = await palvelu.getCharacteristic(NUS_RX);
+  await tx.startNotifications();
+  tx.addEventListener("characteristicvaluechanged", e => {
+    rivipuskuri += new TextDecoder().decode(e.target.value);
+    const rivit = rivipuskuri.split("\n");
+    rivipuskuri = rivit.pop();
+    rivit.forEach(puraRivi);
+  });
+  await rx.writeValue(new TextEncoder().encode("\x10aloita()\n"));
+  asetaYhteys("Yhdistetty", true);
+  piilotaViesti();
+}
+
+async function katkesi() {
+  asetaYhteys("Yhteys katkesi – yhdistetään uudelleen ...");
+  for (let yritys = 0; yritys < 5 && laite; yritys++) {
+    try { await avaaYhteys(); return; } catch { await new Promise(r => setTimeout(r, 1500)); }
+  }
+  asetaYhteys("Ei yhteyttä");
+  naytaViesti("Yhteys anturiin katkesi. Paina Yhdistä anturiin.", true);
+}
+
+function asetaYhteys(teksti, ok = false) {
+  $("yhteys").textContent = teksti;
+  $("yhteys").classList.toggle("yhdistetty", ok);
+}
+setInterval(() => {   // mittaustiheys yhteysmerkkiin
+  if (!$("yhteys").classList.contains("yhdistetty")) return;
+  const n = tahti.reduce((s, x) => s + x[1], 0);
+  $("yhteys").textContent = `Yhdistetty · ${Math.round(n / 2)}/s`;
+}, 1000);
+
+// ---------- Demo: sama simulaatio kuin PC-ohjelmassa ----------
+function aloitaDemo(huiput) {
+  lopetaDemo();
+  const kall = 15 * Math.PI / 180, ylos = [Math.sin(kall), 0, Math.cos(kall)], vaaka = [Math.cos(kall), 0, -Math.sin(kall)];
+  const kesto = 0.8, vali = 1.8, alku = 4.0, w = 2 * Math.PI / kesto;
+  let k = 0;
+  demoAjastin = setInterval(() => {
+    const naytteet = [], k0 = k;
+    for (let j = 0; j < 10; j++, k++) {
+      const t = k / TAAJUUS, i = Math.floor((t - alku) / vali), v = (t - alku) - i * vali;
+      let av = 0, a1 = 0;
+      if (i >= 0 && i < huiput.length && v < kesto) av = huiput[i] * Math.sin(w * v);
+      else if (t >= 1 && t < 3) a1 = 2 * Math.sin(2 * Math.PI * 3 * t);   // otteen haku
+      const kohina = () => (Math.random() - 0.5) * 0.012;
+      naytteet.push([0, 1, 2].map(x => ylos[x] * (1 + av / G) + vaaka[x] * a1 / G + kohina()));
+    }
+    syotaNaytteet(k0, naytteet);
+  }, 100);
+}
+function lopetaDemo() { clearInterval(demoAjastin); demoAjastin = null; }
+
+// ---------- Ääni ja näyttö ----------
+let audio = null, valvelukko = null;
+function avaaAani() {
+  try { audio = audio || new AudioContext(); audio.resume(); } catch { audio = null; }
+}
+function piippaa() {
+  navigator.vibrate?.(180);
+  if (!audio) return;
+  const t = audio.currentTime;
+  [0, 0.16].forEach(d => {
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.type = "square"; o.frequency.value = 1320;
+    g.gain.setValueAtTime(0.0001, t + d);
+    g.gain.exponentialRampToValueAtTime(0.35, t + d + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.12);
+    o.connect(g).connect(audio.destination);
+    o.start(t + d); o.stop(t + d + 0.13);
+  });
+}
+async function pidaNayttoPaalla(paalla) {
+  try {
+    if (paalla && "wakeLock" in navigator) valvelukko = await navigator.wakeLock.request("screen");
+    else { await valvelukko?.release(); valvelukko = null; }
+  } catch { /* ei tuettu: ei haittaa */ }
+}
+
+function naytaViesti(t, virhe = false) { const v = $("viesti"); v.textContent = t; v.classList.toggle("virhe", virhe); v.hidden = false; }
+function piilotaViesti() { $("viesti").hidden = true; }
+
+// ---------- Lomake ----------
+function valittu() { return [$("kayttaja").value.trim(), $("liike").value.trim()]; }
+
+function paivita() {
+  const d = lueData(), [k, n] = valittu();
+  $("kayttajat").innerHTML = ""; $("liikkeet").innerHTML = "";
+  Object.keys(d.kayttajat).forEach(x => $("kayttajat").append(new Option(x)));
+  Object.keys(d.kayttajat[k] || {}).forEach(x => $("liikkeet").append(new Option(x)));
+  const l = liikeTiedot(d, k, n);
+  if (!k || !n) $("info").textContent = "Kirjoita tai valitse käyttäjä ja liike.";
+  else if (!l || !l.testi?.length) $("info").textContent = `${k} / ${n}: ei pohjatestiä – aloita pohjatestillä.`;
+  else {
+    const par = l.sarjat.filter(s => "parannus" in s).map(s => s.parannus);
+    const paras = par.length ? `, paras parannus ${prosentti(Math.max(...par))}` : "";
+    $("info").textContent = `${k} / ${n}: pohjatesti ${kg(l.kuorma)}, ${l.sarjat.length} harjoitussarjaa${paras}`;
+  }
+  try { localStorage.setItem(AVAIN + "_valinta", JSON.stringify([k, n])); } catch {}
+  return l;
+}
+const prosentti = x => (x >= 0 ? "+" : "") + fi(x * 100) + " %";
+
+$("kayttaja").addEventListener("input", paivita);
+$("liike").addEventListener("input", () => {
+  const l = paivita();
+  if (l?.kuorma != null) $("kuorma").value = l.kuorma;
+});
+
+// ---------- Sarja ----------
+let sarja = null;  // {testi, n, tavoite, k, nimi, kuorma}
+
+function aloita(testi) {
+  piilotaViesti();
+  const [k, n] = valittu();
+  if (!k || !n) return naytaViesti("Anna ensin käyttäjä ja liike.", true);
+  const demo = $("demo").checked;
+  if (!demo && !$("yhteys").classList.contains("yhdistetty")) return naytaViesti("Yhdistä ensin anturiin (tai rastita Demo).", true);
+  const d = lueData(), l = liikeTiedot(d, k, n);
+  let lukumaara, tavoite = null, kuorma = parseFloat(String($("kuorma").value).replace(",", "."));
+  kuorma = isNaN(kuorma) ? null : kuorma;
+  lukumaara = Math.max(1, Math.min(20, parseInt($("toistot").value) || 6));
+  if (!testi) {
+    if (!l || !l.testi?.length) return naytaViesti(`Käyttäjällä ${k} ei ole vielä pohjatestiä liikkeelle '${n}'. Tee ensin pohjatesti.`, true);
+    lukumaara = Math.min(lukumaara, l.testi.length);   // verrataan pohjatestin ensimmäisiin toistoihin
+    tavoite = l.testi.slice(0, lukumaara).map(h => pyor(h * (1 + LISAYS)));
+    kuorma = l.kuorma;
+  }
+  sarja = { testi, n: lukumaara, tavoite, k, nimi: n, kuorma };
+
+  avaaAani();
+  pidaNayttoPaalla(true);
+  $("asetukset").hidden = true; $("tulos").hidden = true; $("varmuus").hidden = true; $("mittaus").hidden = false;
+  $("vaihe").textContent = "Pidä tanko hetki paikallaan ...";
+  $("laskuri").textContent = `${testi ? "Pohjatesti" : "Harjoitus"} · ${n} · ${kg(kuorma)}`;
+  $("huippu").textContent = "–"; $("huippu").className = "";
+  $("tavoiterivi").textContent = tavoite ? `Ensimmäinen tavoite ${fi(tavoite[0])}` : "";
+  $("pisteet").innerHTML = "";
+  for (let i = 0; i < lukumaara; i++) $("pisteet").append(document.createElement("span"));
+
+  mittaus = new Mittaus(lukumaara, tapahtuma);
+  if (demo) {
+    const perus = l?.testi?.length ? l.testi : Array.from({ length: lukumaara }, () => 10 + Math.random() * 4);
+    const kerroin = testi ? 1 : 0.95 + Math.random() * 0.2;
+    aloitaDemo(perus.slice(0, lukumaara).map(h => h * kerroin * (0.95 + Math.random() * 0.1)));
+  }
+}
+
+function tapahtuma(laji, arvo) {
+  const s = sarja, m = mittaus;
+  if (laji === "kalibroitu") $("vaihe").textContent = "Valmis. Ota ote / asetu rauhassa – mittaus alkaa liikkeestä.";
+  else if (laji === "alku") $("vaihe").textContent = "Mitataan";
+  else if (laji === "toisto") {
+    const i = m.huiput.length, h = arvo, pallo = $("pisteet").children[i - 1];
+    $("laskuri").textContent = `Toisto ${i} / ${s.n}`;
+    $("huippu").textContent = fi(h);
+    if (s.tavoite && i <= s.tavoite.length) {
+      const ok = h >= s.tavoite[i - 1];
+      $("huippu").className = ok ? "ok" : "ei";
+      pallo?.classList.add(ok ? "ok" : "ei");
+      const seur = s.tavoite[i];
+      $("tavoiterivi").textContent = `tavoite ${fi(s.tavoite[i - 1])} ${ok ? "✓" : "✗"}` + (seur ? ` · seuraava ${fi(seur)}` : "");
+      if (ok) {
+        piippaa();
+        const el = $("mittaus"); el.classList.remove("vilkku"); void el.offsetWidth; el.classList.add("vilkku");
+      }
+    } else {
+      pallo?.classList.add("tehty");
+      $("huippu").className = "";
+    }
+  } else if (laji === "loppu") {
+    setTimeout(() => valmis(arvo), 0);
+  }
+}
+
+function valmis(syy) {
+  lopetaDemo();
+  pidaNayttoPaalla(false);
+  const s = sarja, huiput = mittaus.huiput;
+  mittaus = null;
+  $("mittaus").hidden = true; $("varmuus").hidden = false;
+  if (!huiput.length) {
+    $("asetukset").hidden = false;
+    naytaViesti(syy === "maks" ? "Mittausraja täynnä, yhtään toistoa ei tunnistettu. Mitään ei tallennettu."
+                               : "Yhtään toistoa ei tunnistettu, mitään ei tallennettu.", true);
+    return;
+  }
+  const d = lueData(), l = liikeTiedot(d, s.k, s.nimi, true);
+  const nyt = new Date(), pvm = `${String(nyt.getDate()).padStart(2, "0")}.${String(nyt.getMonth() + 1).padStart(2, "0")}. ${String(nyt.getHours()).padStart(2, "0")}:${String(nyt.getMinutes()).padStart(2, "0")}`;
+  const tiedot = { pvm, huiput, liike: [], laite: "puhelin" };
+  let otsikko, teksti, ok = false;
+  if (s.testi) {
+    if (l.testi?.length) {   // vanha kuorma talteen
+      (l.historia = l.historia || []).push({ kuorma: l.kuorma, testi: l.testi, testi_tiedot: l.testi_tiedot, sarjat: l.sarjat });
+      l.sarjat = [];
+    }
+    l.testi = huiput; l.testi_tiedot = tiedot; l.kuorma = s.kuorma;
+    otsikko = "Pohjatesti tallennettu";
+    teksti = `${s.k} / ${s.nimi}, ${kg(s.kuorma)}. ${huiput.length < s.n ? `Tunnistettiin ${huiput.length}/${s.n} toistoa. ` : ""}Harjoituksen tavoitteet (+10 %) laskettu.`;
+  } else {
+    const pohja = l.testi.slice(0, huiput.length);
+    const ka = a => a.reduce((x, y) => x + y, 0) / a.length;
+    const parannus = ka(huiput) / ka(pohja) - 1;
+    tiedot.parannus = pyor(parannus, 4);
+    l.sarjat.push(tiedot);
+    const osumat = huiput.filter((h, i) => h >= s.tavoite[i]).length;
+    ok = parannus >= LISAYS;
+    otsikko = ok ? `${prosentti(parannus)} – LISÄÄ PAINOA` : `Parannus ${prosentti(parannus)}`;
+    teksti = ok ? `Tavoite saavutettu. Lisää painoa ja tee uusi pohjatesti. Toistoista ${osumat}/${s.n} ylitti tavoitteen.`
+                : `Tavoite +10 %. Toistoista ${osumat}/${s.n} ylitti tavoitteen.`;
+  }
+  tallenna(d);
+  $("tulos-otsikko").textContent = otsikko;
+  $("tulos-otsikko").className = ok ? "ok" : "";
+  $("tulos-teksti").textContent = teksti;
+  $("tulos").hidden = false;
+  const pohjaN = s.testi ? null : l.testi.slice(0, s.n);
+  piirra(huiput, pohjaN, s.tavoite);
+  taulukko(huiput, pohjaN, s.tavoite);
+  paivita();
+}
+
+function taulukko(huiput, pohja, tavoite) {
+  const t = $("taulukko");
+  t.innerHTML = "<tr><th>Toisto</th>" + (pohja ? "<th>Pohja</th><th>Tavoite</th>" : "") + "<th>Nyt m/s²</th></tr>";
+  huiput.forEach((h, i) => {
+    const r = t.insertRow();
+    r.insertCell().textContent = i + 1;
+    if (pohja) { r.insertCell().textContent = pohja[i] != null ? fi(pohja[i]) : "–"; r.insertCell().textContent = tavoite[i] != null ? fi(tavoite[i]) : "–"; }
+    const c = r.insertCell();
+    c.textContent = fi(h) + (tavoite && tavoite[i] != null ? (h >= tavoite[i] ? " ✓" : " ✗") : "");
+    if (tavoite && tavoite[i] != null) c.style.color = h >= tavoite[i] ? "var(--ok)" : "var(--bad)";
+  });
+}
+
+function piirra(huiput, pohja, tavoite) {
+  const c = $("kuva"), dpr = window.devicePixelRatio || 1;
+  const W = c.clientWidth, H = c.clientHeight;
+  c.width = W * dpr; c.height = H * dpr;
+  const g = c.getContext("2d"); g.scale(dpr, dpr);
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const kaikki = [...huiput, ...(pohja || []), ...(tavoite || [])];
+  const n = Math.max(huiput.length, pohja?.length || 0);
+  const ymax = Math.ceil(Math.max(...kaikki) + 1), ymin = Math.max(0, Math.floor(Math.min(...kaikki) - 1));
+  const vas = 34, oik = 10, yla = 10, ala = 24;
+  const x = i => vas + (n === 1 ? (W - vas - oik) / 2 : i * (W - vas - oik) / (n - 1));
+  const y = v => yla + (ymax - v) / (ymax - ymin) * (H - yla - ala);
+  g.font = "12px system-ui"; g.fillStyle = css("--muted"); g.strokeStyle = css("--line"); g.lineWidth = 1;
+  const askel = Math.max(1, Math.round((ymax - ymin) / 5));
+  for (let v = ymin; v <= ymax; v += askel) {
+    g.beginPath(); g.moveTo(vas, y(v)); g.lineTo(W - oik, y(v)); g.stroke();
+    g.textAlign = "right"; g.textBaseline = "middle"; g.fillText(v, vas - 6, y(v));
+  }
+  g.textAlign = "center"; g.textBaseline = "top";
+  for (let i = 0; i < n; i++) g.fillText(i + 1, x(i), H - ala + 6);
+  const viiva = (arvot, vari, lev, katko, pallot) => {
+    if (!arvot?.length) return;
+    g.strokeStyle = vari; g.fillStyle = vari; g.lineWidth = lev; g.setLineDash(katko);
+    g.beginPath(); arvot.forEach((v, i) => i ? g.lineTo(x(i), y(v)) : g.moveTo(x(i), y(v))); g.stroke();
+    g.setLineDash([]);
+    if (pallot) arvot.forEach((v, i) => { g.beginPath(); g.arc(x(i), y(v), pallot, 0, 7); g.fill(); });
+  };
+  viiva(pohja, css("--muted"), 1.5, [5, 4], 3);
+  viiva(tavoite, css("--bad"), 2.5, [], 0);
+  viiva(huiput, css("--accent"), 3, [], 5);
+}
+
+function lopetaKesken() {
+  if (mittaus) mittaus.lopeta("kayttaja");
+  else { lopetaDemo(); pidaNayttoPaalla(false); $("mittaus").hidden = true; $("asetukset").hidden = false; $("varmuus").hidden = false; }
+}
+
+// ---------- Varmuuskopio ----------
+let tuotava = null;
+$("b-vie").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify(lueData(), null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `ruuvi_harjoitus_puhelin_${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+});
+$("tuo").addEventListener("change", async e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  try {
+    let d = JSON.parse(await f.text());
+    if (!d.kayttajat) d = { kayttajat: { oletus: d } };
+    tuotava = d;
+    const n = Object.keys(d.kayttajat).length;
+    $("b-tuo-vahvista").textContent = `Vahvista: korvaa puhelimen tiedot (${n} käyttäjää tiedostossa)`;
+    $("b-tuo-vahvista").hidden = false;
+  } catch { naytaViesti("Tiedostoa ei voitu lukea. Valitse ruuvi_harjoitus.json.", true); }
+});
+$("b-tuo-vahvista").addEventListener("click", () => {
+  if (tuotava && tallenna(tuotava)) { naytaViesti("Tiedot tuotu."); paivita(); }
+  tuotava = null; $("b-tuo-vahvista").hidden = true; $("tuo").value = "";
+});
+
+// ---------- Käynnistys ----------
+$("b-yhdista").addEventListener("click", yhdista);
+$("b-testi").addEventListener("click", () => aloita(true));
+$("b-harj").addEventListener("click", () => aloita(false));
+$("b-lopeta").addEventListener("click", lopetaKesken);
+$("b-takaisin").addEventListener("click", () => { $("tulos").hidden = true; $("asetukset").hidden = false; });
+try {
+  const [k, n] = JSON.parse(localStorage.getItem(AVAIN + "_valinta") || "[]");
+  if (k) $("kayttaja").value = k;
+  if (n) $("liike").value = n;
+} catch {}
+const alku = paivita();
+if (alku?.kuorma != null) $("kuorma").value = alku.kuorma;
+</script>
+</body>
+</html>
